@@ -1,0 +1,143 @@
+# ---------------------------------------------------------------------------
+# MyLLM.pro / PandaOS monorepo - ignore rules
+#
+# Nothing generated, installed or secret is ever committed. Only hand-written
+# source, configs and *.example templates are tracked. Patterns are kept
+# deliberately narrow: broad classic patterns such as "lib/" or "var/" would
+# silently swallow real source directories.
+# ---------------------------------------------------------------------------
+
+# --- Secrets and local environment ------------------------------------------
+# The application reads its database connection from DATABASE_URL only, and
+# that value lives in a real .env which must never be committed. The committed
+# .env.example templates are re-allowed explicitly below.
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+!.env.template
+
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa
+id_ed25519
+credentials.json
+client_secret*.json
+service-account*.json
+secrets.json
+creds-access.json
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+.eggs/
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments (.venv holds ~840 MB / ~28k files - never commit it)
+.venv/
+venv/
+env.bak/
+virtualenv/
+pyenv.cfg
+
+# Test, type and lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.hypothesis/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+
+# --- Node / frontend --------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.eslintcache
+*.tsbuildinfo
+.vite/
+.turbo/
+stylelint.cache*
+
+# Vite build output
+frontend/dist/
+
+# --- Test / build artefacts -------------------------------------------------
+build/
+dist/
+wheels/
+*.log
+logs/
+
+# --- Local databases --------------------------------------------------------
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+
+# --- Model weights, checkpoints and bulk data -------------------------------
+# The contents of these scaffold directories are machine-generated or bulk;
+# only the .gitkeep marker stays tracked so the monorepo layout survives.
+datasets/*
+!datasets/.gitkeep
+models/*
+!models/.gitkeep
+
+*.safetensors
+*.gguf
+*.pt
+*.pth
+*.onnx
+*.h5
+*.npz
+*.npy
+*.parquet
+
+# --- OS cruft ---------------------------------------------------------------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+*.tmp
+~$*
+
+# --- Editors ----------------------------------------------------------------
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# --- PandaOS / agent tooling local state ------------------------------------
+# Per-chat scratch, credential access and machine-projected caches. Project
+# configuration that humans author (.pandaos/config.yaml, rules/, team/,
+# skills/, specs/) stays tracked.
+.pandaos/sessions/
+.pandaos/logs/
+.pandaos/creds-access.json
+.pandaos/.projected-rules.json
+.pandaos/.rules-adopted
+.pandaos/.team-managed.json
+.claude/settings.local.json

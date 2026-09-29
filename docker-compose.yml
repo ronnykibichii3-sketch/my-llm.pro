@@ -1,0 +1,63 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set in the root .env file}
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+      - MEMORY_COLLECTION_NAME=myllm_memories
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER must be set in the root .env file}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the root .env file}
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB must be set in the root .env file}
+      - PGPORT=${POSTGRES_PORT:-5433}
+    # PGPORT alone only steers the entrypoint's temporary init server, so the
+    # listening port is declared explicitly from the same variable.
+    command: ["postgres", "-c", "port=${POSTGRES_PORT:-5433}"]
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:${POSTGRES_PORT:-5433}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p $${PGPORT} -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    ports:
+      - "${QDRANT_HTTP_HOST_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_HOST_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
