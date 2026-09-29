@@ -3,8 +3,10 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.context.services.context_builder_service import ContextBuilderService
 from app.database.session import get_db_session
 from app.dependencies.auth import CurrentUser
+from app.dependencies.context import get_context_builder
 from app.dependencies.memory import get_memory_service
 from app.memory.services.memory_service import MemoryService
 from app.schemas.chat import ConversationCreate, ConversationRead, MessageCreate, MessageRead
@@ -19,9 +21,10 @@ async def list_conversations(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
+    context_builder: ContextBuilderService = Depends(get_context_builder),
 ) -> list[ConversationRead]:
     """List all conversations for the authenticated user."""
-    service = ChatService(session, memory_service)
+    service = ChatService(session, memory_service, context_builder)
     conversations = await service.list_conversations(current_user.id)
     return [ConversationRead.model_validate(c) for c in conversations]
 
@@ -32,9 +35,10 @@ async def create_conversation(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
+    context_builder: ContextBuilderService = Depends(get_context_builder),
 ) -> ConversationRead:
     """Create a new conversation for the authenticated user."""
-    service = ChatService(session, memory_service)
+    service = ChatService(session, memory_service, context_builder)
     conversation = await service.create_conversation(current_user.id, payload.title)
     return ConversationRead.model_validate(conversation)
 
@@ -45,9 +49,10 @@ async def get_conversation(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
+    context_builder: ContextBuilderService = Depends(get_context_builder),
 ) -> ConversationRead:
     """Get a specific conversation by ID for the authenticated user."""
-    service = ChatService(session, memory_service)
+    service = ChatService(session, memory_service, context_builder)
     conversation = await service.get_conversation(conversation_id, current_user.id)
     return ConversationRead.model_validate(conversation)
 
@@ -90,8 +95,13 @@ async def chat(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
+    context_builder: ContextBuilderService = Depends(get_context_builder),
 ) -> MessageRead:
-    """Save the user message, generate and save the reply, return the assistant message."""
-    service = ChatService(session, memory_service)
+    """Save the user message, generate and save the reply, return the assistant message.
+
+    The turn's prompt context (profile plus retrieved knowledge) is assembled by
+    the context builder inside ``ChatService``; this route only wires it in.
+    """
+    service = ChatService(session, memory_service, context_builder)
     message = await service.chat(current_user.id, conversation_id, payload.content)
     return MessageRead.model_validate(message)

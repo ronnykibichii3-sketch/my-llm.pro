@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     knowledge_chunk_overlap: int = 200
     knowledge_max_document_chars: int = 200_000
     knowledge_max_upload_bytes: int = 2_000_000
+    context_max_chars: int = 6000
+    profile_max_chars: int = 1500
+    knowledge_max_chars: int = 4500
+    knowledge_top_k: int = 5
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
