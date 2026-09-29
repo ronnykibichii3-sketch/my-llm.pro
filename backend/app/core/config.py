@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: SecretStr | None = None
     memory_collection_name: str = "myllm_memories"
+    knowledge_collection_name: str = "myllm_knowledge"
+    knowledge_chunk_max_chars: int = 1200
+    knowledge_chunk_overlap: int = 200
+    knowledge_max_document_chars: int = 200_000
+    knowledge_max_upload_bytes: int = 2_000_000
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

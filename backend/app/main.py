@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, chat, health, memory
+from app.api.v1 import auth, chat, health, knowledge, memory, profile
 from app.core.config import get_settings
 from app.core.logging import configure_logging, logger
 from app.exceptions.handlers import register_exception_handlers
@@ -46,6 +46,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(chat.router, prefix="/api/v1")
     app.include_router(memory.router, prefix="/api/v1")
+    app.include_router(profile.router, prefix="/api/v1")
+    app.include_router(knowledge.router, prefix="/api/v1")
 
     return app
 

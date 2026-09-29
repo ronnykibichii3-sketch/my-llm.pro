@@ -11,7 +11,15 @@ from alembic import context
 
 from app.core.config import get_settings
 from app.database.base import Base
-from app.database.models import Conversation, Memory, Message, User  # noqa: F401
+from app.database.models import (  # noqa: F401
+    Conversation,
+    KnowledgeChunk,
+    KnowledgeDocument,
+    Memory,
+    Message,
+    User,
+    UserProfile,
+)
 
 config = context.config
 

@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.database.base import Base
 from app.database.session import get_db_session
+from app.dependencies.knowledge import get_knowledge_config, get_knowledge_vector_store
 from app.dependencies.memory import get_embedding_service, get_vector_store
+from app.knowledge.config import KnowledgeConfig
 from app.main import create_app
 from app.memory.services.vector_store import VectorHit
 
@@ -62,10 +64,18 @@ class FakeVectorStore:
     async def upsert(self, point_id: str, vector: list[float], payload: dict[str, Any]) -> None:
         self._points[point_id] = (list(vector), dict(payload))
 
-    async def search(self, vector: list[float], limit: int, user_id: int) -> list[VectorHit]:
+    async def search(
+        self,
+        vector: list[float],
+        limit: int,
+        user_id: int,
+        must_match: dict[str, Any] | None = None,
+    ) -> list[VectorHit]:
         hits: list[VectorHit] = []
         for point_id, (stored, payload) in self._points.items():
             if payload.get("user_id") != user_id:
+                continue
+            if not _matches(payload, must_match):
                 continue
             hits.append(VectorHit(point_id=point_id, score=_cosine_similarity(vector, stored), payload=dict(payload)))
         hits.sort(key=lambda hit: hit.score, reverse=True)
@@ -73,6 +83,10 @@ class FakeVectorStore:
 
     async def delete(self, point_id: str) -> None:
         self._points.pop(point_id, None)
+
+
+def _matches(payload: dict[str, Any], must_match: dict[str, Any] | None) -> bool:
+    return all(payload.get(key) == value for key, value in (must_match or {}).items())
 
 
 def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
@@ -111,8 +125,16 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_db_session] = override_get_db
     fake_embedding = FakeEmbeddingService()
     fake_vectors = FakeVectorStore()
+    fake_knowledge_vectors = FakeVectorStore()
     app.dependency_overrides[get_embedding_service] = lambda: fake_embedding
     app.dependency_overrides[get_vector_store] = lambda: fake_vectors
+    app.dependency_overrides[get_knowledge_vector_store] = lambda: fake_knowledge_vectors
+    app.dependency_overrides[get_knowledge_config] = lambda: KnowledgeConfig(
+        chunk_max_chars=200,
+        chunk_overlap=40,
+        max_document_chars=5000,
+        max_upload_bytes=10_000,
+    )
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac

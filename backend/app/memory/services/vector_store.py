@@ -38,8 +38,19 @@ class VectorStore(Protocol):
         """Insert or replace a single vector point with its payload."""
         ...
 
-    async def search(self, vector: list[float], limit: int, user_id: int) -> list[VectorHit]:
-        """Return the top-scoring points for a user, best score first."""
+    async def search(
+        self,
+        vector: list[float],
+        limit: int,
+        user_id: int,
+        must_match: Mapping[str, Any] | None = None,
+    ) -> list[VectorHit]:
+        """Return the top-scoring points for a user, best score first.
+
+        ``must_match`` adds exact payload equality conditions on top of the
+        mandatory ``user_id`` scope, for callers that need a narrower filter
+        (for example a knowledge search restricted to one document).
+        """
         ...
 
     async def delete(self, point_id: str) -> None:
@@ -88,11 +99,20 @@ class QdrantVectorStore:
             wait=True,
         )
 
-    async def search(self, vector: list[float], limit: int, user_id: int) -> list[VectorHit]:
+    async def search(
+        self,
+        vector: list[float],
+        limit: int,
+        user_id: int,
+        must_match: Mapping[str, Any] | None = None,
+    ) -> list[VectorHit]:
         from qdrant_client.models import FieldCondition, Filter, MatchValue
 
         client = self._get_client()
-        query_filter = Filter(must=[FieldCondition(key=FILTER_USER_ID_KEY, match=MatchValue(value=user_id))])
+        conditions = [FieldCondition(key=FILTER_USER_ID_KEY, match=MatchValue(value=user_id))]
+        for key, value in (must_match or {}).items():
+            conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
+        query_filter = Filter(must=conditions)
         response = await asyncio.to_thread(
             client.query_points,
             collection_name=self._collection_name,
