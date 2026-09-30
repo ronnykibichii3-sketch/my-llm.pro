@@ -7,7 +7,9 @@ from app.context.services.context_builder_service import ContextBuilderService
 from app.database.session import get_db_session
 from app.dependencies.auth import CurrentUser
 from app.dependencies.context import get_context_builder
+from app.dependencies.inference import get_inference_service
 from app.dependencies.memory import get_memory_service
+from app.inference.services.inference_service import InferenceService
 from app.memory.services.memory_service import MemoryService
 from app.schemas.chat import ConversationCreate, ConversationRead, MessageCreate, MessageRead
 from app.services.chat_service import ChatService
@@ -22,9 +24,10 @@ async def list_conversations(
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
     context_builder: ContextBuilderService = Depends(get_context_builder),
+    inference: InferenceService = Depends(get_inference_service),
 ) -> list[ConversationRead]:
     """List all conversations for the authenticated user."""
-    service = ChatService(session, memory_service, context_builder)
+    service = ChatService(session, memory_service, context_builder, inference)
     conversations = await service.list_conversations(current_user.id)
     return [ConversationRead.model_validate(c) for c in conversations]
 
@@ -36,9 +39,10 @@ async def create_conversation(
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
     context_builder: ContextBuilderService = Depends(get_context_builder),
+    inference: InferenceService = Depends(get_inference_service),
 ) -> ConversationRead:
     """Create a new conversation for the authenticated user."""
-    service = ChatService(session, memory_service, context_builder)
+    service = ChatService(session, memory_service, context_builder, inference)
     conversation = await service.create_conversation(current_user.id, payload.title)
     return ConversationRead.model_validate(conversation)
 
@@ -50,9 +54,10 @@ async def get_conversation(
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
     context_builder: ContextBuilderService = Depends(get_context_builder),
+    inference: InferenceService = Depends(get_inference_service),
 ) -> ConversationRead:
     """Get a specific conversation by ID for the authenticated user."""
-    service = ChatService(session, memory_service, context_builder)
+    service = ChatService(session, memory_service, context_builder, inference)
     conversation = await service.get_conversation(conversation_id, current_user.id)
     return ConversationRead.model_validate(conversation)
 
@@ -96,12 +101,16 @@ async def chat(
     session: AsyncSession = Depends(get_db_session),
     memory_service: MemoryService = Depends(get_memory_service),
     context_builder: ContextBuilderService = Depends(get_context_builder),
+    inference: InferenceService = Depends(get_inference_service),
 ) -> MessageRead:
     """Save the user message, generate and save the reply, return the assistant message.
 
-    The turn's prompt context (profile plus retrieved knowledge) is assembled by
-    the context builder inside ``ChatService``; this route only wires it in.
+    The turn's prompt context (profile plus retrieved knowledge) is assembled by the
+    context builder and composed into a prompt by the inference service, both inside
+    ``ChatService``; this route only wires them in. Whichever ``LLM_PROVIDER`` is
+    configured answers, and a provider that is unreachable is answered with the
+    stored apology rather than an error.
     """
-    service = ChatService(session, memory_service, context_builder)
+    service = ChatService(session, memory_service, context_builder, inference)
     message = await service.chat(current_user.id, conversation_id, payload.content)
     return MessageRead.model_validate(message)

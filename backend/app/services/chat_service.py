@@ -1,10 +1,10 @@
 """Conversation turns: persist the exchange and produce the assistant reply.
 
-The reply pipeline is ``user message -> ContextBuilderService -> model``. Profile
-and knowledge lookups sit behind the context builder on purpose: this service
-never queries them directly, so new context sources (memory, agents, training
-signals) are adopted in one place instead of being threaded through chat (see
-app/context/README.md).
+The reply pipeline is ``user message -> ContextBuilderService -> InferenceService``.
+Profile and knowledge lookups sit behind the context builder, and the model behind
+the inference service, on purpose: this service neither queries a context source
+nor speaks to a provider, so a new context source or a new backend is adopted in
+one place each (see app/context/README.md and app/inference/README.md).
 """
 
 from fastapi import HTTPException, status
@@ -12,13 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.context.schemas.context import ContextObject
 from app.context.services.context_builder_service import ContextBuilderService
-from app.core.logging import logger
 from app.database.models.chat import Conversation, Message
+from app.inference.services.inference_service import InferenceService
 from app.memory.services.memory_service import MemoryService
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.message_repository import MessageRepository
-
-PLACEHOLDER_RESPONSE = "temporary placeholder"
 
 
 class ChatService:
@@ -27,11 +25,13 @@ class ChatService:
         session: AsyncSession,
         memory: MemoryService,
         context: ContextBuilderService,
+        inference: InferenceService,
     ) -> None:
         self._chats = ChatRepository(session)
         self._messages = MessageRepository(session)
         self._memory = memory
         self._context = context
+        self._inference = inference
 
     async def list_conversations(self, user_id: int) -> list[Conversation]:
         return await self._chats.list_conversations(user_id)
@@ -63,17 +63,11 @@ class ChatService:
     async def _generate_reply(self, content: str, context: ContextObject) -> str:
         """Produce the answer to ``content`` given the assembled ``context``.
 
-        ``context.combined_context`` is the system prompt for this turn and may be
-        empty when the user has no profile and nothing matched in their knowledge
-        base; an empty context is a normal turn, not an error. The model provider
-        call belongs here once one is wired in - until then the placeholder keeps
-        the chat contract unchanged.
+        The inference service composes the prompt, calls the configured provider and
+        reports the turn; a provider that cannot answer comes back as the stored
+        apology rather than an exception, so the conversation is never left with a
+        user message and no reply.
         """
-        logger.info(
-            "Answering turn with %s context characters, %s citations, ~%s context tokens",
-            len(context.combined_context),
-            len(context.citations),
-            context.token_estimate,
-        )
-        return PLACEHOLDER_RESPONSE
+        response = await self._inference.answer(context, content)
+        return response.content
 

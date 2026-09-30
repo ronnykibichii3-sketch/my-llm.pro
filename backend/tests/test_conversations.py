@@ -3,6 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
+from tests.conftest import FAKE_LLM_REPLY
+
 
 async def _create_user_and_login(client: AsyncClient) -> str:
     """Helper to create a user and return auth token."""
@@ -102,7 +104,7 @@ async def test_chat_persists_messages(client: AsyncClient) -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["role"] == "assistant"
-    assert data["content"] == "temporary placeholder"
+    assert data["content"] == FAKE_LLM_REPLY
     assert "id" in data
 
     messages_response = await client.get(

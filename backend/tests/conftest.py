@@ -13,8 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.database.base import Base
 from app.database.session import get_db_session
+from app.dependencies.inference import get_inference_service
 from app.dependencies.knowledge import get_knowledge_config, get_knowledge_vector_store
 from app.dependencies.memory import get_embedding_service, get_vector_store
+from app.inference.schemas.inference import LLMResponse
+from app.inference.services.inference_service import InferenceService
 from app.knowledge.config import KnowledgeConfig
 from app.main import create_app
 from app.memory.services.vector_store import VectorHit
@@ -26,6 +29,51 @@ from app.memory.services.vector_store import VectorHit
 # same suite against a real server.
 TEST_DATABASE_URL: str = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 FAKE_EMBEDDING_DIMENSION = 32
+
+# Every endpoint test that chats gets this reply instead of a model call: no test
+# in the suite reaches an LLM provider, running or not. See app/inference/README.md
+# for the provider contract this stub satisfies.
+FAKE_LLM_PROVIDER_NAME = "fake"
+FAKE_LLM_MODEL = "fake-model"
+FAKE_LLM_REPLY = "fake provider reply"
+FAKE_LLM_INPUT_TOKENS = 12
+FAKE_LLM_OUTPUT_TOKENS = 4
+FAKE_LLM_LATENCY_MS = 5
+
+
+class FakeLLMProvider:
+    """Provider that replays one canned completion and records the prompts it was sent."""
+
+    def __init__(self, content: str = FAKE_LLM_REPLY, error: Exception | None = None) -> None:
+        self._content = content
+        self._error = error
+        self.calls: list[tuple[str, str, str]] = []
+
+    @property
+    def name(self) -> str:
+        return FAKE_LLM_PROVIDER_NAME
+
+    @property
+    def model(self) -> str:
+        return FAKE_LLM_MODEL
+
+    async def generate(self, system_prompt: str, user_prompt: str, context: str = "") -> LLMResponse:
+        self.calls.append((system_prompt, user_prompt, context))
+        if self._error is not None:
+            raise self._error
+        return LLMResponse(
+            content=self._content,
+            model=FAKE_LLM_MODEL,
+            provider=FAKE_LLM_PROVIDER_NAME,
+            input_tokens_estimate=FAKE_LLM_INPUT_TOKENS,
+            output_tokens_estimate=FAKE_LLM_OUTPUT_TOKENS,
+            latency_ms=FAKE_LLM_LATENCY_MS,
+        )
+
+
+def fake_inference_service(provider: FakeLLMProvider | None = None) -> InferenceService:
+    """Wire an inference service around a fake provider, bypassing ``LLM_PROVIDER``."""
+    return InferenceService(provider=provider if provider is not None else FakeLLMProvider())
 
 
 class FakeEmbeddingService:
@@ -135,6 +183,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         max_document_chars=5000,
         max_upload_bytes=10_000,
     )
+    app.dependency_overrides[get_inference_service] = lambda: fake_inference_service()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
